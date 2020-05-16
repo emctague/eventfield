@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"github.com/gorilla/mux"
 	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/sqlite"
+	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/russross/blackfriday/v2"
 	"golang.org/x/crypto/bcrypt"
 	"html/template"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	txtemplate "text/template"
 )
@@ -28,7 +29,7 @@ type Blog struct {
 }
 
 func main() {
-	db, err := gorm.Open("sqlite3", "test.db")
+	db, err := gorm.Open("postgres", os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Fatal(err)
 	}
