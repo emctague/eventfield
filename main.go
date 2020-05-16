@@ -18,7 +18,7 @@ import (
 type Post struct {
 	gorm.Model
 	Blog   Blog
-	BlogID int
+	BlogID uint
 
 	Body template.HTML
 }
@@ -38,25 +38,15 @@ func main() {
 
 	views := template.Must(template.ParseGlob("views/*"))
 
-	script, err := txtemplate.New("index.gojs").Funcs(txtemplate.FuncMap{
-		"json": func(obj interface{}) string {
-			data, err := json.Marshal(obj)
-			if err != nil {
-				return "\"ERROR\""
-			}
+	script, err := txtemplate.New("index.gojs").
+		Funcs(txtemplate.FuncMap{"json": ToJSONString}).
+		ParseFiles("index.gojs")
 
-			return string(data)
-		},
-	}).ParseFiles("index.gojs")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	r := mux.NewRouter()
-
-	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		views.ExecuteTemplate(w, "index.gohtml", nil)
-	})
 
 	r.HandleFunc("/blogs", func(w http.ResponseWriter, r *http.Request) {
 		hash, err := bcrypt.GenerateFromPassword([]byte(r.FormValue("password")), 15)
@@ -71,43 +61,25 @@ func main() {
 		http.Redirect(w, r, "/blogs/"+strconv.Itoa(int(blog.ID)), 302)
 	}).Methods("POST")
 
-	r.HandleFunc("/blogs", func(w http.ResponseWriter, r *http.Request) {
-		views.ExecuteTemplate(w, "blogs.gohtml", nil)
-	})
-
-	r.HandleFunc("/blogs/{id}/js/{selector}", func(w http.ResponseWriter, r *http.Request) {
-		id, err := strconv.Atoi(mux.Vars(r)["id"])
-		if err != nil {
-			log.Fatal(err)
-		}
-
+	r.HandleFunc("/blogs/{id}/js/{selector}", RouteWithID(db, func(blog Blog, w http.ResponseWriter, r *http.Request) {
 		selector := mux.Vars(r)["selector"]
 
 		var posts []Post
-		db.Order("created_at desc").Find(&posts, &Post{BlogID: id})
+		db.Order("created_at desc").Find(&posts, &Post{BlogID: blog.ID})
 
-		script.Execute(w, struct {
+		err = script.Execute(w, struct {
 			Selector string
 			Posts    []Post
 		}{selector, posts})
-	})
 
-	r.HandleFunc("/blogs/{id}", func(w http.ResponseWriter, r *http.Request) {
-		// Hardcoded for now I guess
-		views.ExecuteTemplate(w, "preview.gohtml", "https://eventfield.herokuapp.com/"+r.URL.Path)
-	})
-
-	r.HandleFunc("/blogs/{id}/add", func(w http.ResponseWriter, r *http.Request) {
-		id, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
-			log.Fatal(err)
+			http.Error(w, "Internal server error", 500)
 		}
+	}))
 
+	r.HandleFunc("/blogs/{id}/add", RouteWithID(db, func(blog Blog, w http.ResponseWriter, r *http.Request) {
 		pw := r.FormValue("password")
 		body := r.FormValue("body")
-
-		var blog Blog
-		db.First(&blog, id)
 
 		err = bcrypt.CompareHashAndPassword(blog.PwHash, []byte(pw))
 		if err != nil {
@@ -117,17 +89,57 @@ func main() {
 
 		db.Create(&Post{
 			Body:   template.HTML(blackfriday.Run([]byte(body))),
-			BlogID: id,
+			BlogID: blog.ID,
 		})
 
-		http.Redirect(w, r, "/blogs/"+strconv.Itoa(id), 302)
-	}).Methods("POST")
+		http.Redirect(w, r, "/blogs/"+strconv.Itoa(int(blog.ID)), 302)
+	})).Methods("POST")
 
-	r.HandleFunc("/blogs/{id}/add", func(w http.ResponseWriter, r *http.Request) {
-		views.ExecuteTemplate(w, "add.gohtml", mux.Vars(r)["id"])
-	})
-
+	r.HandleFunc("/", PageFor(views, "index.gohtml"))
+	r.HandleFunc("/blogs", PageFor(views, "blogs.gohtml"))
+	r.HandleFunc("/blogs/{id}/add", PageFor(views, "add.gohtml"))
+	r.HandleFunc("/blogs/{id}", PageFor(views, "preview.gohtml"))
 	r.PathPrefix("/static").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
 	log.Fatal(http.ListenAndServe(":"+os.Getenv("PORT"), r))
+}
+
+func RouteWithID(db *gorm.DB, handler func(Blog, http.ResponseWriter, *http.Request)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var blog Blog
+		id, err := strconv.Atoi(mux.Vars(r)["id"])
+
+		if err != nil || db.First(&blog, id).RecordNotFound() {
+			http.Error(w, "Blog not found", 404)
+			return
+		}
+
+		handler(blog, w, r)
+	}
+}
+
+func PageFor(views *template.Template, page string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		err := views.ExecuteTemplate(w, page,
+			struct {
+				Vars map[string]string
+				Path string
+			}{
+				mux.Vars(r),
+				"https://eventfield.herokuapp.com/" + r.URL.Path,
+			})
+
+		if err != nil {
+			http.Error(w, "Internal server error", 500)
+		}
+	}
+}
+
+func ToJSONString(obj interface{}) string {
+	data, err := json.Marshal(obj)
+	if err != nil {
+		return "\"ERROR\""
+	}
+
+	return string(data)
 }

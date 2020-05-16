@@ -7,7 +7,7 @@
 </head>
 <body>
     <header>New Post</header>
-    <form action="/blogs/{{.}}/add" method="post">
+    <form action="/blogs/{{index .Vars "id"}}/add" method="post">
         <textarea name="body"></textarea>
         <div class="row">
             <input type="password" name="password" placeholder="password"/>
