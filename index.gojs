@@ -1,0 +1,10 @@
+(function(){
+    const parent = document.querySelector("{{.Selector}}");
+    const posts = {{json .Posts}};
+
+    for (let post of posts) {
+        const child = document.createElement("article");
+        child.innerHTML = post.Body;
+        parent.appendChild(child);
+    }
+})();

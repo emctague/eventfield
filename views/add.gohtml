@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>New Post</title>
+    <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+    <header>New Post</header>
+    <form action="/blogs/{{.}}/add" method="post">
+        <textarea name="body"></textarea>
+        <div class="row">
+            <input type="password" name="password" placeholder="password"/>
+            <input type="submit" value="submit"/>
+        </div>
+    </form>
+</body>
+</html>

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Preview</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>Blog Preview</header>
+    <small>
+        <a href="{{.}}/add">New Post</a> |
+        Embed:
+        <code>&lt;div class="eventfield-posts"&gt;&lt;/div&gt;&lt;script src="{{.}}/js/.eventfield-posts"&gt;&lt;/script&gt;</code>
+    </small>
+    <hr/>
+    <div class="posts"></div>
+    <script src="{{.}}/js/.posts"></script>
+</body>
+</html>
